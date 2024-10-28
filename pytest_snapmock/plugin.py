@@ -141,6 +141,6 @@ class SnapMock:
         """Monkeypatch an object with a snapshot wrapper."""
         if isinstance(target, str):
             target = importlib.import_module(target)
-        snap_cls = SaveSnap if os.environ.get('SNAPIT') else LoadSnap
+        snap_cls = SaveSnap if self._request.config.option.snapshot_mocks or os.environ.get('SNAPIT') else LoadSnap
         self._snap = snap_cls(target, name, self._request, self._capsys, serializer)
         self._monkeypatch.setattr(target, name, self._snap)
