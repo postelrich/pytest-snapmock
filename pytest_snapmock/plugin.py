@@ -15,7 +15,12 @@ def pytest_addoption(parser):
     group.addoption(
         '--snapshot-mocks',
         action='store_true',
-        help='Update snapshot files instead of testing against them.',
+        help='Update snapshot files instead of testing against them. Skips files that are already generated with the same hash.',
+    )
+    group.addoption(
+        '--snapshot-mocks-all',
+        action='store_true',
+        help='Force update all snapshot files even if hash is unchanged.'
     )
 
 
@@ -33,12 +38,13 @@ class BaseSnap:
     SNAP_SUFFIX = 'snap'
     HASH_SUFFIX = 'hash'
 
-    def __init__(self, target: ModuleType, name: str, request: None, capsys: None, serializer):
+    def __init__(self, target: ModuleType, name: str, request: None, output_serializer, arg_serializer):
         self.target = target
         self.name = name
         self.request = request
         self.capsys = capsys
-        self.serializer =serializer
+        self.output_serializer = output_serializer
+        self.arg_serializer = arg_serializer
         self.func = getattr(target, name)
         self.call_count = 0
         self.outlines = []
@@ -57,27 +63,56 @@ class BaseSnap:
 
         Used to identify if the inputs have changed and thus require a new snapshot to be generated.
         """
-        return hashlib.md5(self.serializer.dumps(args + tuple(sorted(kwargs.items()))).encode()).hexdigest()
+        return hashlib.md5(self.arg_serializer.dumps(args + tuple(sorted(kwargs.items()))).encode()).hexdigest()
 
-    def __call__(self, *args: tuple(Any), **kwargs: Dict[str, Any]) -> Any:
+    def _read_hash(self) -> str | None:
+        try:
+            fname = self.filename(BaseSnap.HASH_SUFFIX)
+            with open(fname) as f:
+                snap_hash = f.read()
+                return snap_hash
+        except FileNotFoundError:
+            return None
+
+    def _write_hash(self, *args: tuple[Any], **kwargs: Dict[str, Any]) -> None:
+        fname = self.filename(BaseSnap.HASH_SUFFIX)
+        with open(hash_fname, 'w') as f:
+            snap_hash = self._hash_inputs(args, kwargs)
+            f.write(snap_hash)
+
+    def _read_output(self) -> Any:
+        try:
+            fname = self.filename(BaseSnap.SNAP_SUFFIX)
+            with open(fname, 'r') as f:
+                res = self.output_serializer.loads(f.read())
+        except FileNotFoundError:
+            return None
+
+    def _write_output(self, output: Any) -> None:
+        fname = self.filename(BaseSnap.SNAP_SUFFIX)
+        fname.parent.mkdir(exist_ok=True)
+        with open(fname, 'w') as f:
+            f.write(self.output_serializer.dumps(output))
+
+    def __call__(self, *args: tuple[Any], **kwargs: Dict[str, Any]) -> Any:
         raise NotImplementedError
 
 
 class SaveSnap(BaseSnap):
     """Subclass snapshot wrapper that calls the function, saves it to a snapshot and returns function output."""
 
-    def __call__(self, *args: tuple(Any), **kwargs: Dict[str, Any]) -> Any:
-        # save function output to file
-        res = self.func(*args, **kwargs)
-        fname = self.filename(BaseSnap.SNAP_SUFFIX)
-        fname.parent.mkdir(exist_ok=True)
-        with open(fname, 'w') as f:
-            f.write(self.serializer.dumps(res))
-
-        # save function input hash to file
-        with open(self.filename(BaseSnap.HASH_SUFFIX), 'w') as f:
+    def __call__(self, *args: tuple[Any], **kwargs: Dict[str, Any]) -> Any:
+        # skip generating output if it hasn't changed
+        if not self._request.config.option.snapshot_mocks_all:
+            existing_hash = self._read_hash()
             snap_hash = self._hash_inputs(args, kwargs)
-            f.write(snap_hash)
+            if existing_hash is not None and existing_hash == snap_hash:
+                return
+
+        # save function output and hash to file
+        res = self.func(*args, **kwargs)
+        self._write_output(res)
+        self._write_hash(*args, **kwargs)
 
         self.outlines.append(f'  - Generated snapshot for call #{self.call_count} to {self.func.__name__}')
 
@@ -100,24 +135,18 @@ class LoadSnap(BaseSnap):
     def __call__(self, *args: tuple(Any), **kwargs: Dict[str, Any]) -> Any:
         try:
             # check inputs haven't changed
-            try:
-                fname = self.filename(BaseSnap.HASH_SUFFIX)
-                with open(fname) as f:
-                    snap_hash = f.read()
-                run_hash = self._hash_inputs(args, kwargs)
-                if snap_hash != run_hash:
-                    raise StaleSnapshot("Inputs to function updated, snapshot is stale. Run pytest with snapshot.")
-            except FileNotFoundError:
-                raise UnsnappedTest(f"Could not find hash file={fname}. Run pytest with snapshot.")
+            snap_hash = self._read_hash()
+            if snap_hash is None:
+                raise UnsnappedTest("Could not find hash file. Run pytest with snapshot.")
+            run_hash = self._hash_inputs(args, kwargs)
+            if snap_hash != run_hash:
+                raise StaleSnapshot("Inputs to function updated, snapshot is stale. Run pytest with snapshot.")
 
             # load and return snapshot
-            try:
-                fname = self.filename(BaseSnap.SNAP_SUFFIX)
-                with open(fname, 'r') as f:
-                    res = self.serializer.loads(f.read())
-            except FileNotFoundError:
-                raise UnsnappedTest(f"Could not find snap file={fname}. Run pytest with snapshot.")
-            return res
+            output = self._read_output()
+            if output is None:
+                raise UnsnappedTest("Could not find snap file. Run pytest with snapshot.")
+            return output
         finally:
             self.call_count += 1
 
@@ -125,9 +154,8 @@ class LoadSnap(BaseSnap):
 class SnapMock:
     """Snapshot monkeypatched objects."""
 
-    def __init__(self, request, capsys):
+    def __init__(self, request):
         self._request = request
-        self._capsys = capsys
         self._monkeypatch = pytest.MonkeyPatch()
         self.outlines = []
         self._snap = None
@@ -137,10 +165,10 @@ class SnapMock:
         self.outlines += self._snap.outlines
         self._monkeypatch.undo()
 
-    def snapit(self, target: str | ModuleType, name: str, serializer=json) -> None:
+    def snapit(self, target: str | ModuleType, name: str, output_serializer=json, arg_serializer=json) -> None:
         """Monkeypatch an object with a snapshot wrapper."""
         if isinstance(target, str):
             target = importlib.import_module(target)
         snap_cls = SaveSnap if self._request.config.option.snapshot_mocks or os.environ.get('SNAPIT') else LoadSnap
-        self._snap = snap_cls(target, name, self._request, self._capsys, serializer)
+        self._snap = snap_cls(target, name, self._request, output_serializer, arg_serializer)
         self._monkeypatch.setattr(target, name, self._snap)

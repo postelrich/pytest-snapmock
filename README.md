@@ -1,10 +1,9 @@
-# pytest Snapshot Library for Monkeypatched Objects
+# pytest-snapmock
 
 ![Pytest Snapshot](https://img.shields.io/badge/python-3.7%2B-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## Overview
-
 This library provides a convenient way to generate snapshots for monkeypatched objects in your tests using `pytest`. Longgone are the days trying to come up with mock lambdas and data.
 
 ## Features
@@ -23,59 +22,40 @@ pip install pytest-snapmock
 
 ## Usage
 
-### Basic Example
+### snapit
 
-Let's say you have a function that reads some data from a database and does a transformation.
+Take a function like the following that changes based on when it's called:
 ```python
-# sales.py
-import pandas as pd
+import datetime
 
-def sales_by_month():
-    df = pd.read_sql('select date, total from sales', engine=someengine)
-    return df.groupby(df['date'].dt.month)['total'].sum()
+def two_days_from_now():
+    return datetime.today() + datetime.timedelta(days=2)
 ```
-For a unittest we might not want to be making queries to a database, so we could monkeypatch the call like:
+
+To write a unittest, you would have to patch `datetime.today` to return a fixed date:
 ```python
-test_sales.py
-import pandas as pd
-
-import sales
-
-
-def test_sales_by_month(monkeypatch):
-    monkeypatch.setattr('sales.pd', 'read_sql', lambda *args, **kwargs: pd.DataFrame({'date': [pd.Timestamp('2024-10-01'), ..., pd.Timestamp('2024-12-31')], 'total': [500.0, ..., 100.8]})
-    assert sales.sales_by_month() == pd.DataFrame(...)
+def test_two_days_from_now(monkeypatch):
+    monkeypatch.setattr(mymodule.datetime, 'today', lambda: datetime.date(2024, 10, 31))
+    assert two_days_from_now() == datetime.date(2024, 11, 2)
 ```
-But what if we could just do:
+
+Instead, it can be written as:
 ```python
-import pandas as pd
-
-import sales
-
-
-def test_sales_by_month(snapmock):
-    snapmock.snapit('sales.pd', 'read_sql')
-    assert sales.sales_by_month() == pd.DataFrame(...)
-```
-and run 
-```bash
-pytest --snapshot-mocks
-________________________________________ ERROR at teardown of test_double_foo _________________________________________
-  - Generated snapshot for call #0 to read_sql
-=============================================== short test summary info ===============================================
-ERROR tests/test_sales.py::test_sales_by_month - Failed:   - Generated snapshot for call #0 to read_sql
-============================================= 1 errors in 0.16s =======================================================
+def test_two_days_from_now(snapmock):
+    snapmock.snapit(mymodule.datetime, 'today')
+    assert two_days_from_now() == datetime.date(2024, 11, 2)
 ```
 
-### Running Tests
-
-To update snapshots after making changes, use the `--snapshot-update` flag:
-
+And then generate the snapshot
 ```bash
 pytest --snapshot-mocks
 ```
+Verify the snapshot file
+```bash
+cat __snapshot__/test_two_days_from_now_mymodule.datetime_today_0.snap
+```
 
-To run your tests and generate snapshots, simply execute:
+And then just run your tests like normal:
 
 ```bash
 pytest
