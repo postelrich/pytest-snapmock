@@ -76,4 +76,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 Thanks to the contributors of `pytest`, `pytest-snapshot` and `syrupy` for the inspiration!
-

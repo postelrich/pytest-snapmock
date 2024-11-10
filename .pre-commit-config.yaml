@@ -14,5 +14,7 @@ repos:
     # Run the linter.
     - id: ruff
       args: [ --fix ]
+      pass_filnames: false
     # Run the formatter.
     - id: ruff-format
+      pass_filnames: false
