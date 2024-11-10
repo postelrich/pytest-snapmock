@@ -90,7 +90,7 @@ import ridership
 
 
 def test_busiest_day_from_file(monkeypatch):
-    monkeypatch.settattr(ridership, 'get_nyc_ridership', lambda: pd.read_csv(__file__.parent / 'ridership_data.csv')
+    monkeypatch.settattr(ridership, 'get_nyc_ridership', lambda: pd.read_csv(__file__.parent / 'ridership_data.csv'))
     assert busiest_day_by_year() == pd.Series(...)
 
 
