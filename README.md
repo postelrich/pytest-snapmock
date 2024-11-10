@@ -61,6 +61,58 @@ And then just run your tests like normal:
 pytest
 ```
 
+### A more realistic scenario
+
+Let's say you have a function that loads data from a url (or file, db, etc).
+```python
+# ridership.py
+import pandas as pd
+
+def get_nyc_ridership():
+    df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/refs/heads/master/MTA_Ridership_by_DATA_NY_GOV.csv')
+    return df
+
+
+def busiest_day_by_year():
+    df = get_nyc_ridership()
+    df['Date'] = pd.to_datetime(df['Date'])
+    return df.groupby(df['Date'].dt.year)['Subways: Total Estimated Ridership']
+```
+
+Writing the unittest for `busiest_day_by_year` means you need to mock the download via `read_csv` or `get_nyc_ridership`. Which can be done with adding a sample file or handwriting a dataframe in the test directly like:
+
+```python
+from unittest.mock import patch
+
+import pandas as pd
+
+import ridership
+
+
+def test_busiest_day_from_file(monkeypatch):
+    monkeypatch.settattr(ridership, 'get_nyc_ridership', lambda: pd.read_csv(__file__.parent / 'ridership_data.csv')
+    assert busiest_day_by_year() == ...
+
+
+def test_busiest_day(monkeypatch):
+    data = pd.DataFrame({'Date': ['03/01/2020',...],
+                         'Subways: Total Estimated Ridership': [100,...],
+                         ...})
+    monkeypatch.settattr(ridership, 'get_nyc_ridership', lambda: data)
+    assert busiest_day_by_year() == ...
+```
+
+pytest-snapmock takes care of adding the sample file and patching for you. The above can be done:
+
+```python
+import ridership
+
+
+def test_busiest_day(snapmock):
+    snapmock.snapit(ridership, 'get_nyc_ridership')
+    assert busiest_day_by_year()
+```
+
 ## Snapshot Management
 
 Snapshots are stored in a `__snapshot__` directory in the same directory as the test and are named based on the test and the name of mocked object. You can easily manage them by deleting or modifying snapshot files directly.
