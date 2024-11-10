@@ -68,7 +68,7 @@ class BaseSnap:
         try:
             fname = self.filename(BaseSnap.HASH_SUFFIX)
             with open(fname) as f:
-                snap_hash = f.read()
+                snap_hash = f.read().strip()
                 return snap_hash
         except FileNotFoundError:
             return None
