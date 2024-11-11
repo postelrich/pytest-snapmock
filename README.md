@@ -113,6 +113,19 @@ def test_busiest_day(snapmock):
     assert busiest_day_by_year()
 ```
 
+### Serialization
+
+pytest-snapmock serializes the inputs and output of the functions it mocks. It uses the serialized string of the inputs to generate a hash. This hash is used to determine if the function call has been changed and the snapshots need to be regenerated. json is used by default. To use a custom serializer for the output and args, use the `output_serializer` and `arg_sreializer`, respectively. The serializer must have the following interface:
+
+```python
+class Serializer:
+    def loads(self, obj):
+        pass
+
+    def dumps(self, obj):
+        pass
+```
+
 ## Snapshot Management
 
 Snapshots are stored in a `__snapshot__` directory in the same directory as the test and are named based on the test and the name of mocked object. You can easily manage them by deleting or modifying snapshot files directly.
