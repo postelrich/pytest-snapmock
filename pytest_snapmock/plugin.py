@@ -38,7 +38,9 @@ class BaseSnap:
     SNAP_SUFFIX = "snap"
     HASH_SUFFIX = "hash"
 
-    def __init__(self, target: ModuleType, name: str, request: None, output_serializer, arg_serializer):
+    def __init__(
+        self, target: ModuleType, name: str, request: pytest.FixtureRequest, output_serializer, arg_serializer
+    ):
         self.target = target
         self.name = name
         self.request = request
@@ -46,7 +48,7 @@ class BaseSnap:
         self.arg_serializer = arg_serializer
         self.func = getattr(target, name)
         self.call_count = 0
-        self.outlines = []
+        self.outlines: list[str] = []
 
     def snap_dir(self) -> pathlib.Path:
         """Directory to store the snapshot, relative to test file."""
@@ -132,7 +134,7 @@ class StaleSnapshot(Exception):
 class LoadSnap(BaseSnap):
     """Subclass snapshot wrapper that loads the output from the snapshot instead of calling the function."""
 
-    def __call__(self, *args: tuple(Any), **kwargs: dict[str, Any]) -> Any:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         try:
             # check inputs haven't changed
             snap_hash = self._read_hash()
