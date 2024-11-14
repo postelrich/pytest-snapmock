@@ -16,7 +16,7 @@ def pytest_addoption(parser):
     group.addoption(
         "--snapshot-mocks",
         action="store_true",
-        help="Update snapshot files instead of testing against them. Skips files that are already generated with the same hash.",
+        help="Update snapshot files instead of testing them. Skips files that are already generated with the same hash.",
     )
     group.addoption(
         "--snapshot-mocks-all", action="store_true", help="Force update all snapshot files even if hash is unchanged."
