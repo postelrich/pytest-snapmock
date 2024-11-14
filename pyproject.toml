@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 61.0"]
+requires = ["setuptools >= 61.0", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,6 +8,9 @@ dynamic = ["version"]
 classifiers = [
     "Framework :: Pytest",
 ]
+
+[tool.setuptools_scm]
+version_file = "pytest_snapmock/_version.py"
 
 [project.entry-points.pytest11]
 myproject = "pytest_snapmock.plugin"
