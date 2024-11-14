@@ -10,7 +10,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  test:
+  build:
 
     runs-on: ubuntu-latest
     strategy:
@@ -42,15 +42,6 @@ jobs:
     - name: Check types
       run: |
         mypy .
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
-    steps:
     - name: Install pypa/build
       run: |
         python3 -m pip install build --user
