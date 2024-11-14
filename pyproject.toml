@@ -10,7 +10,7 @@ classifiers = [
 ]
 
 [tool.setuptools_scm]
-version_file = "pytest_snapmock/_version.py"
+write_to = "pytest_snapmock/_version.py"
 
 [project.entry-points.pytest11]
 myproject = "pytest_snapmock.plugin"
