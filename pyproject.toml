@@ -4,6 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytest-snapmock"
+readme = "README.md"
 dynamic = ["version"]
 classifiers = [
     "Framework :: Pytest",
